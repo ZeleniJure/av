@@ -1,64 +1,63 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System.ServiceModel.Syndication;
 using System.Xml;
-using System.Net.Http;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.AspNetCore.Http;
 using System.IO;
 using naloga1.Models;
 
 namespace naloga1.Controllers
 {
-
-
     [ApiController]
     [Route("[controller]")]
-    public class WeatherForecastController : ControllerBase
+    public class NewsStatisticsController : ControllerBase
     {
-        private class Cache {
-           public bool HasNewData { get; set; }
-           public IList<NewsSummary> Data { get; set; }
-        }
-
-        private readonly ILogger<WeatherForecastController> _logger;
-        // Using this instead of MemoryCache...
-        private static Cache _cache = new Cache {
-                HasNewData = true,
-                Data = loadData()
-            };
-
-        public WeatherForecastController(ILogger<WeatherForecastController> logger)
+        private class Cache
         {
-            _logger = logger;
+            public bool HasNewData { get; set; }
+            public IList<NewsSummary> Data { get; set; }
         }
 
-        private static IList<NewsSummary> loadData(String filePath = "rss.xml") {
+        /*
+        Will use this for caching parsed XML data (instead of MemoryCache)
+        */
+        private static Cache _cache = new Cache
+        {
+            HasNewData = true,
+            Data = loadData()
+        };
+
+        private static IList<NewsSummary> loadData(String filePath = "rss.xml")
+        {
             // default here works for debug...
-            using (XmlReader reader = XmlReader.Create(filePath)) {
+            using (XmlReader reader = XmlReader.Create(filePath))
+            {
                 return loadData(reader);
             }
         }
-        
-        private static IList<NewsSummary> loadData(XmlReader reader) {
+
+        private static IList<NewsSummary> loadData(XmlReader reader)
+        {
             SyndicationFeed feed = SyndicationFeed.Load(reader);
             Dictionary<String, NewsSummary> fakeDatabase = new Dictionary<String, NewsSummary>();
-            
+
             foreach (SyndicationItem item in feed.Items)
             {
-                foreach (SyndicationCategory category in item.Categories) {
+                foreach (SyndicationCategory category in item.Categories)
+                {
                     // Let's trust the data (mistaaaake!) and assume category can be used for the key
-                    if (fakeDatabase.ContainsKey(category.Name)) {
+                    if (fakeDatabase.ContainsKey(category.Name))
+                    {
                         NewsSummary ns = fakeDatabase[category.Name];
                         if (ns.NewestNewsDate < item.PublishDate) ns.NewestNewsDate = item.PublishDate;
-                        ns.NumberOfNews+=1;
-                    } else {
-                        NewsSummary ns = new NewsSummary {
+                        ns.NumberOfNews += 1;
+                    }
+                    else
+                    {
+                        NewsSummary ns = new NewsSummary
+                        {
                             Category = category.Name,
                             NewestNewsDate = item.PublishDate,
                             NumberOfNews = 1
@@ -76,14 +75,18 @@ namespace naloga1.Controllers
         [ProducesResponseType(400)]
         public IActionResult Get()
         {
-            try{
+            try
+            {
                 Cache news = _cache;
-                if (news.HasNewData) {
+                if (news.HasNewData)
+                {
                     news.HasNewData = false;
                     return Ok(news.Data);
                 }
                 return StatusCode(304, news.Data);
-            } catch {
+            }
+            catch
+            {
                 return BadRequest();
             }
         }
@@ -94,20 +97,24 @@ namespace naloga1.Controllers
         {
             // Asume this is not gonna be called that often,
             // thus global queue shouldn't be blocked and async does not make sense
-            try{
+            try
+            {
                 IList<NewsSummary> data;
                 Stream s = Request.BodyReader.AsStream();
-                using (XmlReader reader = XmlReader.Create(s)) {
+                using (XmlReader reader = XmlReader.Create(s))
+                {
                     data = loadData(reader);
                 }
-                _logger.LogDebug("Updated cache");
-                _cache = new Cache {
+                _cache = new Cache
+                {
                     HasNewData = true,
                     Data = data
                 };
                 return Ok(true);
-            } catch {
-                 return BadRequest();
+            }
+            catch
+            {
+                return BadRequest();
             }
         }
     }
